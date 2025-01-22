@@ -15,3 +15,6 @@ V1
 * Data collection: collect CNN newsroom transcripts ✅
 * Explore vector database (weaviate, chroma) ✅
 * Integrate Streamlit (chatbot + timeline) 🚧
+
+Here's a sample timeline:
+<img src="sample.png">
