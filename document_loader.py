@@ -1,11 +1,6 @@
 import os
-os.environ["OPENAI_API_KEY"] = '' # enter your openai api key here
-
-if os.getenv("OPENAI_API_KEY") is not None:
-    print ("OPENAI_API_KEY is ready")
-else:
-    print ("OPENAI_API_KEY environment variable not found")
-
+from dotenv import load_dotenv
+load_dotenv()
 from langchain_openai import OpenAIEmbeddings
 from typing import List
 from langchain_core.documents import Document

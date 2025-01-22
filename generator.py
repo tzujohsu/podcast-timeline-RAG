@@ -1,9 +1,12 @@
-system_message = ""
 from datetime import datetime
 from openai import OpenAI
 import os
 import json
-client = OpenAI(api_key="") # Add your OpenAI API key here
+from dotenv import load_dotenv
+load_dotenv()
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY")) # Add your OpenAI API key here
+
+system_message = ""
 
 with open(f'timeline_template.json', "r") as f:
     timeline_template = f.read()
