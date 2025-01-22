@@ -5,3 +5,7 @@ __pycache__/
 
 # project files
 data/
+workingfiles/
+chroma_langchain_db/
+timeline.json
+timeline-rag-poc.ipynb
