@@ -1,8 +1,6 @@
 ## Retrieval Augmented System with podcast knowledge
 
-Personal RAG: Transcribed Podcasts for 
-
-Project Overview: This repository aims to build a Retrieval-Augmented Generation (RAG) system that utilizes transcriptions of podcast episodes to generate a timeline for any keywords. The goal is to provide users (ME!) with a valuable tool for knowledge extraction and insights.
+Project Overview: This repository aims to build a Retrieval-Augmented Generation (RAG) system that utilizes transcriptions of podcast episodes to generate a **timeline** for any keywords. The goal is to provide users with a valuable tool for knowledge extraction and insights.
 
 Features / Plan
 
@@ -14,7 +12,9 @@ V0 ❌
 V1
 * Data collection: collect CNN newsroom transcripts ✅
 * Explore vector database (weaviate, chroma) ✅
-* Integrate Streamlit (chatbot + timeline) 🚧
+* Integrate Streamlit (chatbot + timeline) ✅
+* Integrate RAG (chroma) ✅
+* Training model for category classification 🚧
 
 Here's a sample timeline:
 <img src="sample.png">
