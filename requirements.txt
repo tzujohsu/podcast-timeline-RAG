@@ -1,0 +1,13 @@
+pysqlite3-binary
+beautifulsoup4
+st-pages
+openai
+accelerate
+chromadb==0.5.15
+langchain_chroma
+langchain_community
+langchain-openai
+langchain_text_splitters
+streamlit_timeline
+sentence-transformers
+langchain_huggingface

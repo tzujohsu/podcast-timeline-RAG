@@ -1,160 +1,200 @@
+# streamlit sqlite3 dependency handling
+# __import__('pysqlite3')
+# import sys
+# sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+
 import streamlit as st
+from streamlit.components.v1 import html
 import os
-from document_loader import *
-from retriever import *
-from generator import *
-from streamlit_timeline import timeline
 import re
 import json
+import random
 
-# Constants
-EMBEDDING_MODEL = "nomic-embed-text"
-PATH = "data/data-news"
+from utils.retriever import Retriever
+from utils.generator import HuggingfaceTimelineGenerator
+from utils.document_loader import DocumentLoader
+from utils.components import timeline_css, generate_timeline_html
+from streamlit_timeline import timeline
 
-# Page configuration
-st.set_page_config(layout="wide")
+# Set page config
+st.set_page_config(
+    page_title="ChronoEvents: Timeline Generator",
+    page_icon=":hourglass_flowing_sand:",
+    layout="wide"
+)
 
-# Initialize session state for page navigation
-if 'current_page' not in st.session_state:
-    st.session_state.current_page = "Generate Timeline"
+# Initialize necessary components
+if "db" not in st.session_state:
+    docloader = DocumentLoader()
+    st.session_state["docloader"] = docloader
+    print("Database loaded successfully")
 
-# Sidebar navigation
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Generate Timeline", "View Text Files"])
-st.session_state.current_page = page
+st.markdown("""
+<style>
+.highlight {
+    background-color: rgba(0,80,142,0.15);
+    padding: 0 0.4rem;
+    border-radius: 0.25rem;
+    font-weight: bold;
+    line-height: 1.5;
+}
+</style>
+""", unsafe_allow_html=True)
 
-if page == "Generate Timeline":
-    st.title("Timeline summarization via RAG 💬")
+st.markdown("<h1 style='text-align: center; color: black;'>ChronoEvents: Timeline Generator</h1>", unsafe_allow_html=True)
+
+st.markdown(
+    """
+    <div style="width: 60%; margin: 0 auto; text-align: center; font-size: 1.1rem;">
+        <h6>
+        An innovative LLM/RAG-powered tool that transforms news transcripts into structured, temporal insights.
+        </h6>
+    </div>
+    """, 
+    unsafe_allow_html=True
+)
+
+min_date, max_date = st.session_state["docloader"].get_database_dates()
+st.markdown(f"<h6 style='text-align: center; color: grey;'>Data Source: CNN News Central transcripts ({min_date} - {max_date})</h6>", unsafe_allow_html=True)
+
+st.markdown(
+    """
+    <div style="width: 60%; margin: 0 auto; text-align: center; font-size: 1rem;">
+        <br>
+        <p>
+        Simply enter your topic in the input box below, and the tool will: <br>
+        1. Retrieve relevant information from the <span class='highlight'> LangChain Chroma </span> database <br>
+        2. Generate a summarization of all the retrieved events with <span class='highlight'> Mistral-7b </span> <br>
+        3. Display a timeline visualization for each date and event description <br>
+        </p>
+    </div>
+    """, 
+    unsafe_allow_html=True
+)
     
-    # Your existing timeline generation code
-    st.sidebar.subheader('Models and parameters')
-    folder_path = st.sidebar.text_input("Enter the folder path:", PATH)
-    
-    if folder_path:
-        if not os.path.isdir(folder_path):
-            st.error("The provided path is not a valid directory. Please enter a valid folder path.")
-        else:
-            if st.sidebar.button("🗂️ Index Documents", use_container_width=True, type='primary'):
-                if "db" not in st.session_state:
-                    with st.spinner("Creating embeddings and loading documents into Chroma..."):
-                        st.session_state["db"] = load_documents_into_database(folder_path)
-                    st.info("All set to retrieve!")
-    else:
-        st.warning("Please enter a folder path to load documents into the database.")
+if "user_input" not in st.session_state:
+    st.session_state.user_input = ""
 
-    # Rest of your timeline generation code
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+# Helper function to clear text
+def clear_text():
+    st.session_state.user_input = ""
 
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            if isinstance(message["content"], dict) and message["content"].get("type") == "timeline":
-                timeline_data_json = json.dumps(message["content"]["data"])
-                timeline(timeline_data_json, height=600)
-            else:
-                st.markdown(message["content"])
+# Helper function to generate display sample
+sample_inputs = ['tariff', 'plane crashes', 'trade war', 'Artificial Intelligence', 'New York', 'visa revoke']
+def generate_random_sample():
+    random_sample = random.choice(sample_inputs)
+    st.session_state.user_input = random_sample
 
-    if prompt := st.chat_input("Question"):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-        
-        with st.chat_message("assistant"):
-            retrieved_df = get_similarity_search(st.session_state["db"], prompt)
-            summarized_list = get_summary(retrieved_df, prompt)
-            timeline_data = get_timeline_data(summarized_list, prompt)
-            timeline_data_json = json.dumps(timeline_data)
-            
-            with st.container():
-                st.write(f"Here is a timeline for {prompt}")
-                timeline(timeline_data_json, height=600)
-            
-            # Store the timeline data in a structured format
-            st.session_state.messages.append({
-                "role": "assistant", 
-                "content": {
-                    "type": "timeline",
-                    "data": timeline_data
-                }
-            })
+retriever = Retriever(st.session_state["docloader"].vector_store)
+generator = HuggingfaceTimelineGenerator()
 
-elif page == "View Text Files":
-    st.title("Text File Viewer")
-    
-    # File selection section
-    file_path = st.sidebar.text_input("Enter the folder path for text files:", PATH)
-    def parse_filename(filename):
-        # Extract date and segment from filename like "2024-12-30-segment-06.txt"
-        try:
-            date_part = filename.split('-segment-')[0]
-            segment = int(filename.split('-segment-')[1].replace('.txt', ''))
-            year, month, day = map(int, date_part.split('-'))
-            return (year, month, day, segment)
-        except:
-            return (0, 0, 0, 0)  # Return zeros for invalid filenames
+def st_normal():
+    _, col, _ = st.columns([1, 3, 1])
+    return col
 
-    if file_path and os.path.isdir(file_path):
-        text_files = [f for f in os.listdir(file_path) if f.endswith('.txt')]
-        text_files.sort(key=parse_filename)
-        if text_files:
-            selected_file = st.sidebar.selectbox(
-                "Select a file to view",
-                text_files,
-                key="file_selector"
+# Input section
+with st_normal():
+    # Input area with placeholder text
+    user_input = st.text_area(
+        "Enter your topic or query:",
+        placeholder="Describe the topic or events you'd like to create a timeline for...",
+        height=70,
+        key="user_input"
             )
-            
-            try:
-                with open(os.path.join(file_path, selected_file), 'r', encoding='utf-8') as file:
-                    content = file.read()
-                    
-                # Updated pattern to split by punctuation followed by space and specific characters
-                split_pattern = r"(?<=[.!?])\s(?=\[)|(?<=[.!?])\s(?=[A-Z]+:)|(?<=[.!?])\s(?=\()"
-                
-                # Split content into lines and format
-                formatted_lines = []
-                current_line = ""
-                
-                for line in content.split('\n'):
-                    line = line.strip()
-                    if not line:
-                        continue
-                        
-                    # Split the line based on the pattern
-                    parts = re.split(split_pattern, line)
-                    
-                    for part in parts:
-                        part = part.strip()
-                        if part:
-                            if current_line:
-                                formatted_lines.append(current_line)
-                                formatted_lines.append('')  # Add empty line
-                            current_line = part
-                
-                # Add the last line if not empty
-                if current_line:
-                    formatted_lines.append(current_line)
-                
-                formatted_content = '\n'.join(formatted_lines)
-                
-                # Create a container with scrollable text area
-                with st.container():
-                    st.markdown("### File Contents")
-                    st.text_area(
-                        "File Contents",  # Non-empty label
-                        value=formatted_content,
-                        height=500,
-                        key="file_contents",
-                        label_visibility="collapsed"  # Hide the label
-                    )
-                    
-            except Exception as e:
-                st.error(f"Error reading file: {str(e)}")
-        else:
-            st.warning("No text files found in the specified directory.")
-    else:
-        st.warning("Please enter a valid folder path containing text files.")
 
-# Clear Chat History button (available on both pages)
-if st.sidebar.button('🗑️ Clear Chat History', use_container_width=True):
-    st.session_state.messages = []
-    st.session_state["db"] = None
+    col1, col2, col3 = st.columns([4, 1, 1])
+
+    with col1:
+        # Generate Random Sample button
+        st.button("Random topics", on_click=generate_random_sample, type="secondary")
+
+    with col2:
+        # Clear Input button
+        st.button("Clear Input", on_click=clear_text, type="secondary")
+
+    with col3:
+        # Generate timeline button
+        generate_button = st.button("Generate", type="primary")
+
+    # Results section
+    if generate_button and user_input:
+        with st.spinner("Generating timeline..."):
+            # Retrieve relevant documents
+            retrieved_df = retriever.get_similarity_search(user_input)
+            
+            # Generate timeline
+            summarized_list = generator.get_summary(retrieved_df, user_input=user_input)
+            timeline_data = generator.get_timeline_data(summarized_list, user_input)
+            
+
+            char_sum = 0
+            for event in timeline_data:
+                _, description = event['title'], event['description']
+                char_sum += len(description)
+            
+            html(generate_timeline_html(timeline_data), height=350*char_sum//500+300)  # Increased height for better scrolling 
+
+    st.markdown("---")
+
+def st_normal():
+    _, col, _ = st.columns([1, 8, 1])
+    return col
+
+with st_normal():
+    # Title
+    st.markdown("""
+        <h2 style='text-align: center; margin-bottom: 0.5rem;'>Project Overview</h2>
+        """, unsafe_allow_html=True)
+
+    # Motivation Section
+    st.markdown("""
+    <div class='section'>
+
+    #### 💡 Motivation
+    Navigating websites or documents with numerous timestamps can make it difficult to grasp their chronological flow. 
+    While chatbots like ChatGPT excel at conversation, they struggle to extract and present structured insights from large volumes of text. 
+    This project addresses that gap by generating meaningful timelines from content such as news transcripts and podcasts, helping users visualize how events evolve over time. 
+    Currently, it features a timeline summarizer, with future plans to incorporate sentiment and trend analysis.
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Dataset Section
+    st.markdown(f"""
+    <div class='section'>
+
+    #### 📚 Data Retrieval and Storage
+    The CNN News Central transcripts are vectorized with **all-MiniLM-L6-v2** and stored in Chroma database. 
+    The data pipeline can be configured to scrape transcripts daily using **GitHub Actions** (optional).
+    Given the limitations of the free tier, I keep the time range of the transcripts within approximately a month.
+    The current date range is within {min_date} - {max_date}. (Note that there are some gaps on days when the podcast wasn't aired.)
+    </div>
+    """, unsafe_allow_html=True)
+
+    # System Design Section
+    st.markdown("""
+    <div class='section'>
+
+    #### ⚙️ System Design
+    <div class='tech-item'>
+    <strong>Large Language Models:</strong> LangChain Chroma, Recursive Character Text Splitter, Huggingface Embeddings, Huggingface Mistral-7b
+    </div>
+
+    <div class='tech-item'>
+    <strong>Frontend:</strong> Streamlit, HTML, CSS
+    </div>
+
+    <div class='tech-item'>
+    <strong>Data retrieval:</strong> BeautifulSoup (GitHub Actions optional)
+    </div>
+
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Disclaimer Section
+    st.markdown("""
+    ---
+    <div class='section'>
+
+    😉 Disclaimer: The results generated by this model and the news content displayed are for demonstration purposes only and do not reflect my personal opinions and should not be used as a sole source of information.
+    </div>
+    """, unsafe_allow_html=True)
