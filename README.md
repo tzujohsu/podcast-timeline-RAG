@@ -32,6 +32,12 @@ An innovative LLM/RAG-powered tool that transforms news transcripts into structu
 - **Embeddings**: all-MiniLM-L6-v2
 - **Data Pipeline**: BeautifulSoup (GitHub Actions optional)
 
+---
+
+<img src="sample.png" width="500">
+
+
+
 ## Installation
 
 1. Clone the repository
